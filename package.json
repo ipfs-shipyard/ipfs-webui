@@ -32,7 +32,7 @@
     "@tableflip/react-inspector": "^2.3.0",
     "brace": "^0.11.1",
     "change-case": "^3.1.0",
-    "chart.js": "^2.9.3",
+    "chart.js": "^2.9.4",
     "cids": "^1.1.6",
     "countly-sdk-web": "^19.8.0",
     "d3": "^5.16.0",
