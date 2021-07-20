@@ -28,6 +28,7 @@ import { IGNORED_FILES, ACTIONS } from './consts'
  * @property {string} path
  * @property {boolean} pinned
  * @property {boolean|void} isParent
+ * @property {FileStat|null} upper
  *
  * @param {Object} stat
  * @param {'dir'|'directory'|'file'|'unknown'} stat.type
@@ -48,7 +49,8 @@ const fileFromStats = ({ cumulativeSize, type, size, cid, name, path, pinned, is
   name: name || path.split('/').pop() || cid.toString(),
   path: path || `${prefix}/${cid.toString()}`,
   pinned: Boolean(pinned),
-  isParent: isParent
+  isParent: isParent,
+  upper: null
 })
 
 /**
@@ -612,6 +614,41 @@ const importFiles = (ipfs, files) => {
 }
 
 /**
+ * @param {string} path
+ * @param {IPFSService} ipfs
+ * @param {boolean} isRoot
+ * @returns {Promise<FileStat|null>}
+ */
+const getParent = async (path, ipfs, isRoot) => {
+  if (isRoot) return null
+
+  const parentPath = dirname(path)
+  const parentInfo = infoFromPath(parentPath, false)
+
+  if (parentInfo && (parentInfo.isMfs || !parentInfo.isRoot)) {
+    const realPath = parentInfo.realPath
+
+    if (realPath && realPath.startsWith('/ipns')) {
+      parentInfo.realPath = await last(ipfs.name.resolve(parentInfo.realPath))
+    }
+
+    const parent = fileFromStats({
+      ...await stat(ipfs, parentInfo.realPath),
+      path: parentInfo.path,
+      name: '..',
+      isParent: true
+    })
+
+    return {
+      ...parent,
+      upper: await getParent(parentInfo.path, ipfs, parentInfo.realPath === '/')
+    }
+  }
+
+  return null
+}
+
+/**
  * @param {IPFSService} ipfs
  * @param {CID} cid
  * @param {Object} options
@@ -646,34 +683,12 @@ const dirStats = async (ipfs, cid, { path, isRoot, sorting }) => {
     files.push(file)
   }
 
-  let parent = null
-
-  if (!isRoot) {
-    const parentPath = dirname(path)
-    const parentInfo = infoFromPath(parentPath, false)
-
-    if (parentInfo && (parentInfo.isMfs || !parentInfo.isRoot)) {
-      const realPath = parentInfo.realPath
-
-      if (realPath && realPath.startsWith('/ipns')) {
-        parentInfo.realPath = await last(ipfs.name.resolve(parentInfo.realPath))
-      }
-
-      parent = fileFromStats({
-        ...await stat(ipfs, parentInfo.realPath),
-        path: parentInfo.path,
-        name: '..',
-        isParent: true
-      })
-    }
-  }
-
   return {
     path: path,
     fetched: Date.now(),
     type: 'directory',
     cid,
-    upper: parent,
+    upper: await getParent(path, ipfs, Boolean(isRoot)),
     content: sortFiles(files, sorting)
   }
 }

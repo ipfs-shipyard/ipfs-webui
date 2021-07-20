@@ -31,9 +31,16 @@ const mergeRemotePinsIntoFiles = (files, remotePins) => {
   }) : f)
 }
 
+const getUpperParentCids = (upperDir) => {
+  if (!upperDir) return []
+  if (upperDir.upper) return [...getUpperParentCids(upperDir.upper), upperDir.cid]
+  if (upperDir.cid) return [upperDir.cid]
+  return []
+}
+
 export const FilesList = ({
-  className, files, pins, remotePins, filesSorting, updateSorting, downloadProgress, filesIsFetching, filesPathInfo, showLoadingAnimation,
-  onShare, onSetPinning, onInspect, onDownload, onRemove, onRename, onNavigate, onRemotePinClick, onAddFiles, onMove, handleContextMenuClick, t
+  className, files, pins, remotePins, filesSorting, updateSorting, downloadProgress, filesIsFetching, filesPathInfo, showLoadingAnimation, upperDir,
+  onShare, onSetPinning, onInspect, onDownload, onRemove, onRename, onNavigate, doCheckIfMultipleArePinned, onAddFiles, onMove, handleContextMenuClick, t
 }) => {
   const [selected, setSelected] = useState([])
   const [focused, setFocused] = useState(null)
@@ -41,6 +48,19 @@ export const FilesList = ({
   const [allFiles, setAllFiles] = useState(mergeRemotePinsIntoFiles(files, remotePins))
   const listRef = useRef()
   const filesRefs = useRef([])
+
+  const [, setParentLocallyPinned] = useState(false)
+
+  useEffect(() => {
+    const asyncHandler = async () => {
+      const upperCids = getUpperParentCids(upperDir)
+      if (await doCheckIfMultipleArePinned(upperCids)) {
+        console.log(true)
+        setParentLocallyPinned(true)
+      }
+    }
+    asyncHandler()
+  }, [upperDir, doCheckIfMultipleArePinned, setParentLocallyPinned])
 
   const [{ canDrop, isOver, isDragging }, drop] = useDrop({
     accept: NativeTypes.FILE,
@@ -375,5 +395,6 @@ export default connect(
   'selectFilesSorting',
   'selectFilesPathInfo',
   'selectShowLoadingAnimation',
+  'doCheckIfMultipleArePinned',
   withTranslation('files')(FilesList)
 )
